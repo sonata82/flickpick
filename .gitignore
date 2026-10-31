@@ -1,0 +1,22 @@
+# Secrets / local
+local.properties
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+dist/
+
+# Gradle / Android
+.gradle/
+build/
+app/.idea/
+.idea/
+*.iml
+.DS_Store
+captures/
+.kotlin/
+
+# Local debug seed copy of movies.json
+app/app/src/debug/assets/
