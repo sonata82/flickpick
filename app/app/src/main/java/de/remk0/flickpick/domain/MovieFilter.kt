@@ -15,6 +15,7 @@ data class FilterState(
     val matchAll: Boolean = false,
     val minVotes: Int = DEFAULT_MIN_VOTES,
     val sort: SortOption = SortOption.RATING,
+    val showSeen: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MIN_VOTES = 10_000
@@ -49,9 +50,15 @@ fun comparatorFor(sort: SortOption): Comparator<Movie> = when (sort) {
     SortOption.TITLE -> byTitle
 }
 
-fun filterAndSort(movies: List<Movie>, query: String, filter: FilterState): List<Movie> {
+fun filterAndSort(
+    movies: List<Movie>,
+    query: String,
+    filter: FilterState,
+    seenIds: Set<Int> = emptySet(),
+): List<Movie> {
     val q = normalizeForSearch(query.trim())
     return movies.asSequence()
+        .filter { m -> filter.showSeen || m.tmdbId !in seenIds }
         .filter { m -> filter.minVotes <= 0 || (m.imdbVotes ?: 0) >= filter.minVotes }
         .filter { m ->
             when {

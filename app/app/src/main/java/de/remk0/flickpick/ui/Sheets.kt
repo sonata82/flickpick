@@ -145,6 +145,10 @@ fun FilterSheet(filters: FilterState, onChange: (FilterState) -> Unit, onDismiss
                 FilterChip("Match any", selected = !filters.matchAll, onClick = { onChange(filters.copy(matchAll = false)) })
                 FilterChip("Match all", selected = filters.matchAll, onClick = { onChange(filters.copy(matchAll = true)) })
             }
+            SheetSection("Seen movies") {
+                FilterChip("Hide seen", selected = !filters.showSeen, onClick = { onChange(filters.copy(showSeen = false)) })
+                FilterChip("Show seen", selected = filters.showSeen, onClick = { onChange(filters.copy(showSeen = true)) })
+            }
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = { onChange(FilterState()) }) { Text("Reset to defaults") }
         }

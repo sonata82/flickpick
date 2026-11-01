@@ -20,6 +20,7 @@ class FilterPrefs(private val context: Context) {
         val matchAll = booleanPreferencesKey("match_all")
         val minVotes = intPreferencesKey("min_votes")
         val sort = stringPreferencesKey("sort")
+        val showSeen = booleanPreferencesKey("show_seen")
         val notifAsked = booleanPreferencesKey("notif_permission_asked")
     }
 
@@ -29,6 +30,7 @@ class FilterPrefs(private val context: Context) {
             matchAll = p[Keys.matchAll] ?: false,
             minVotes = p[Keys.minVotes] ?: FilterState.DEFAULT_MIN_VOTES,
             sort = p[Keys.sort]?.let { s -> SortOption.entries.firstOrNull { it.name == s } } ?: SortOption.RATING,
+            showSeen = p[Keys.showSeen] ?: false,
         )
     }
 
@@ -40,6 +42,7 @@ class FilterPrefs(private val context: Context) {
             p[Keys.matchAll] = f.matchAll
             p[Keys.minVotes] = f.minVotes
             p[Keys.sort] = f.sort.name
+            p[Keys.showSeen] = f.showSeen
         }
     }
 

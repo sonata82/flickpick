@@ -18,6 +18,7 @@ class AppContainer(context: Context) {
     val notifier = Notifier(context)
     val db = WatchlistDb.create(context)
     val watchlistDao = db.dao()
+    val seenDao = db.seenDao()
     val watchlistChecker = WatchlistChecker(watchlistDao, notifier)
     val prefs = FilterPrefs(context)
     val searchApi = TmdbSearchApi(httpClient, json, BuildConfig.TMDB_TOKEN)

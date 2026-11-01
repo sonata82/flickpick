@@ -54,4 +54,12 @@ class MovieFilterTest {
         assertEquals(listOf(2), ids(filterAndSort(movies, "AMELIE", FilterState())))
         assertEquals(listOf(1), ids(filterAndSort(movies, "incep", FilterState())))
     }
+
+    @Test fun seenMoviesHiddenByDefault() {
+        assertEquals(listOf(6, 5), ids(filterAndSort(movies, "", FilterState(), seenIds = setOf(1, 2))))
+    }
+
+    @Test fun seenMoviesShownWhenToggled() {
+        assertEquals(listOf(1, 6, 2, 5), ids(filterAndSort(movies, "", FilterState(showSeen = true), seenIds = setOf(1, 2))))
+    }
 }

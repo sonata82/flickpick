@@ -7,7 +7,6 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,22 +25,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,7 +42,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +55,7 @@ import de.remk0.flickpick.data.watchlist.WatchlistEntry
 import de.remk0.flickpick.ui.components.CenteredMessage
 import de.remk0.flickpick.ui.components.FpCard
 import de.remk0.flickpick.ui.components.Poster
+import de.remk0.flickpick.ui.components.SwipeAction
 import de.remk0.flickpick.ui.components.RatingRing
 import de.remk0.flickpick.ui.theme.Fp
 import kotlinx.coroutines.launch
@@ -177,7 +170,7 @@ fun WatchlistTab(vm: MainViewModel, modifier: Modifier) {
                 TextButton(onClick = { vm.clearAvailable() }) { Text("Clear") }
             }
             items(available, key = { "a${it.tmdbId}" }) { e ->
-                SwipeToRemove(onRemove = { vm.removeFromWatchlist(e.tmdbId) }) {
+                SwipeAction(Icons.Filled.Delete, "Remove", Fp.BrandRed.copy(alpha = 0.25f), onSwiped = { vm.removeFromWatchlist(e.tmdbId) }) {
                     WatchlistRow(e, byId[e.tmdbId], onClick = { vm.openMovie(e.tmdbId) })
                 }
             }
@@ -185,7 +178,7 @@ fun WatchlistTab(vm: MainViewModel, modifier: Modifier) {
         if (waiting.isNotEmpty()) {
             sectionHeader("Waiting", waiting.size)
             items(waiting, key = { "w${it.tmdbId}" }) { e ->
-                SwipeToRemove(onRemove = { vm.removeFromWatchlist(e.tmdbId) }) {
+                SwipeAction(Icons.Filled.Delete, "Remove", Fp.BrandRed.copy(alpha = 0.25f), onSwiped = { vm.removeFromWatchlist(e.tmdbId) }) {
                     WatchlistRow(e, null, onClick = null)
                 }
             }
@@ -200,28 +193,6 @@ private fun LazyListScope.sectionHeader(title: String, count: Int, action: (@Com
             action?.invoke()
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SwipeToRemove(onRemove: () -> Unit, content: @Composable () -> Unit) {
-    val state = rememberSwipeToDismissBoxState()
-    LaunchedEffect(state.currentValue) {
-        if (state.currentValue != SwipeToDismissBoxValue.Settled) onRemove()
-    }
-    SwipeToDismissBox(
-        state = state,
-        backgroundContent = {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Fp.BrandRed.copy(alpha = 0.25f))
-                    .padding(horizontal = 24.dp),
-                contentAlignment = if (state.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd,
-            ) { Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = Fp.TextPrimary) }
-        },
-    ) { content() }
 }
 
 @Composable

@@ -44,10 +44,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.Color
+import de.remk0.flickpick.ui.components.SwipeAction
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.remk0.flickpick.BuildConfig
 import de.remk0.flickpick.data.Movie
@@ -161,14 +175,19 @@ private fun OverflowMenu(onAbout: () -> Unit) {
 private fun TopRated(vm: MainViewModel, modifier: Modifier) {
     val catalog by vm.catalog.collectAsStateWithLifecycle()
     val load by vm.load.collectAsStateWithLifecycle()
-    val movies by vm.visibleMovies.collectAsStateWithLifecycle()
+    val visible by vm.visibleMovies.collectAsStateWithLifecycle()
+    val movies = visible.movies
     val filters by vm.filters.collectAsStateWithLifecycle()
     val genreNames by vm.genreNames.collectAsStateWithLifecycle()
     val query by vm.catalogQuery.collectAsStateWithLifecycle()
+    val seenIds by vm.seenIds.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(filters, query) { listState.scrollToItem(0) }
+    // Runs once the list built for new filters/search is actually shown (not before it arrives).
+    LaunchedEffect(visible.filterKey) { listState.scrollToItem(0) }
 
     Column(modifier) {
         GenreRow(
@@ -183,6 +202,7 @@ private fun TopRated(vm: MainViewModel, modifier: Modifier) {
         if (catalog != null && bannerError != null) {
             ErrorBanner(bannerError, vm::dismissError, Modifier.padding(horizontal = HPad).padding(bottom = 8.dp))
         }
+        Box(Modifier.fillMaxSize()) {
         PullToRefreshBox(
             isRefreshing = load.refreshing && catalog != null,
             onRefresh = vm::refresh,
@@ -229,17 +249,67 @@ private fun TopRated(vm: MainViewModel, modifier: Modifier) {
                             }
                         } else {
                             itemsIndexed(movies, key = { _, m -> m.tmdbId }) { i, m ->
-                                MovieCard(
-                                    movie = m,
-                                    rank = i + 1,
-                                    genreNames = genresText(m, genreNames),
-                                    onClick = { vm.openMovie(m.tmdbId) },
-                                )
+                                val seen = m.tmdbId in seenIds
+                                SwipeAction(
+                                    icon = if (seen) Icons.Filled.Close else Icons.Filled.Check,
+                                    label = if (seen) "Not seen" else "Seen",
+                                    background = if (seen) Color(0xFF26262C) else Fp.BrandPurple.copy(alpha = 0.45f),
+                                    resetAfter = filters.showSeen,
+                                    onSwiped = {
+                                        vm.setSeen(m.tmdbId, !seen)
+                                        if (!seen) {
+                                            scope.launch {
+                                                snackbar.currentSnackbarData?.dismiss()
+                                                val r = snackbar.showSnackbar(
+                                                    message = "Marked \u201c${m.title}\u201d as seen",
+                                                    actionLabel = "Undo",
+                                                    duration = SnackbarDuration.Long,
+                                                )
+                                                if (r == SnackbarResult.ActionPerformed) {
+                                                    val countBefore = listState.layoutInfo.totalItemsCount
+                                                    vm.setSeen(m.tmdbId, false)
+                                                    // Bring the restored card into view if it lands above the viewport.
+                                                    withTimeoutOrNull(2_000) {
+                                                        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > countBefore }
+                                                        val index = vm.visibleMovies.value.movies.indexOfFirst { it.tmdbId == m.tmdbId }
+                                                        if (index >= 0 && index < listState.firstVisibleItemIndex) {
+                                                            listState.animateScrollToItem(index)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                ) {
+                                    MovieCard(
+                                        movie = m,
+                                        rank = i + 1,
+                                        genreNames = genresText(m, genreNames),
+                                        onClick = { vm.openMovie(m.tmdbId) },
+                                        seen = seen,
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+        SnackbarHost(
+            snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+        ) { data ->
+            Snackbar(
+                data,
+                modifier = Modifier.padding(horizontal = HPad),
+                shape = RoundedCornerShape(16.dp),
+                containerColor = Color(0xFF26262C),
+                contentColor = Fp.TextPrimary,
+                actionColor = Fp.ChipSelectedText,
+            )
+        }
         }
     }
 
@@ -266,8 +336,9 @@ private fun GenreRow(
         item("filters") {
             val votes = if (filters.minVotes > 0) "${formatVotesShort(filters.minVotes)}+ votes" else "All votes"
             val match = if (filters.genreIds.size > 1) (if (filters.matchAll) " · All" else " · Any") else ""
+            val seen = if (filters.showSeen) " · Seen shown" else ""
             FilterChip(
-                label = "${filters.sort.label} · $votes$match",
+                label = "${filters.sort.label} · $votes$match$seen",
                 selected = false,
                 onClick = onOpenFilters,
                 trailing = { Icon(Icons.Filled.ArrowDropDown, null, tint = Fp.ChipText, modifier = Modifier.size(18.dp)) },

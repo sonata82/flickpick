@@ -13,6 +13,8 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 enum class WatchStatus(val dbValue: String) {
@@ -61,13 +63,43 @@ interface WatchlistDao {
     suspend fun deleteAvailable()
 }
 
-@Database(entities = [WatchlistEntry::class], version = 1, exportSchema = false)
+/** A movie the user has already watched; hidden from Top rated unless "Show seen" is on. */
+@Entity(tableName = "seen")
+data class SeenMovie(
+    @PrimaryKey val tmdbId: Int,
+    val seenAt: Long,
+)
+
+@Dao
+interface SeenDao {
+    @Query("SELECT tmdbId FROM seen")
+    fun observeIds(): Flow<List<Int>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(movie: SeenMovie)
+
+    @Query("DELETE FROM seen WHERE tmdbId = :tmdbId")
+    suspend fun delete(tmdbId: Int)
+}
+
+@Database(entities = [WatchlistEntry::class, SeenMovie::class], version = 2, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class WatchlistDb : RoomDatabase() {
     abstract fun dao(): WatchlistDao
+    abstract fun seenDao(): SeenDao
 
     companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `seen` (`tmdbId` INTEGER NOT NULL, `seenAt` INTEGER NOT NULL, PRIMARY KEY(`tmdbId`))",
+                )
+            }
+        }
+
         fun create(context: Context): WatchlistDb =
-            Room.databaseBuilder(context, WatchlistDb::class.java, "watchlist.db").build()
+            Room.databaseBuilder(context, WatchlistDb::class.java, "watchlist.db")
+                .addMigrations(MIGRATION_1_2)
+                .build()
     }
 }

@@ -7,6 +7,7 @@ import de.remk0.flickpick.FlickpickApp
 import de.remk0.flickpick.data.Movie
 import de.remk0.flickpick.data.MoviesFile
 import de.remk0.flickpick.data.SearchResult
+import de.remk0.flickpick.data.watchlist.SeenMovie
 import de.remk0.flickpick.data.watchlist.WatchStatus
 import de.remk0.flickpick.data.watchlist.WatchlistEntry
 import de.remk0.flickpick.domain.FilterState
@@ -74,11 +75,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
-    val visibleMovies: StateFlow<List<Movie>> =
-        combine(catalog, filters, catalogQuery) { f, filter, q -> Triple(f, filter, q) }
-            .mapLatest { (f, filter, q) -> filterAndSort(f?.movies.orEmpty(), q, filter) }
+    val seenIds: StateFlow<Set<Int>> = c.seenDao.observeIds()
+        .map { it.toSet() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    /** The filtered list plus the filters/query it was built for, so the UI can scroll to top only when those change. */
+    data class VisibleMovies(val filterKey: Pair<FilterState, String>, val movies: List<Movie>)
+
+    private val visible: StateFlow<VisibleMovies> =
+        combine(catalog, filters, catalogQuery, seenIds) { f, filter, q, seen ->
+            VisibleMovies(filter to q, filterAndSort(f?.movies.orEmpty(), q, filter, seen))
+        }
             .flowOn(Dispatchers.Default)
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, VisibleMovies(FilterState() to "", emptyList()))
+
+    val visibleMovies: StateFlow<VisibleMovies> = visible
 
     val watchlist: StateFlow<List<WatchlistEntry>> =
         c.watchlistDao.observeAll().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -159,6 +170,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val firstAsk = !c.prefs.notificationPermissionAsked.first()
         if (firstAsk) c.prefs.setNotificationPermissionAsked()
         return firstAsk
+    }
+
+    fun setSeen(tmdbId: Int, seen: Boolean) = viewModelScope.launch {
+        if (seen) c.seenDao.insert(SeenMovie(tmdbId, System.currentTimeMillis()))
+        else c.seenDao.delete(tmdbId)
     }
 
     fun removeFromWatchlist(tmdbId: Int) = viewModelScope.launch { c.watchlistDao.delete(tmdbId) }

@@ -21,11 +21,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.ensureActive
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -227,7 +242,14 @@ fun FpCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content
 }
 
 @Composable
-fun MovieCard(movie: Movie, rank: Int, genreNames: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun MovieCard(
+    movie: Movie,
+    rank: Int,
+    genreNames: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    seen: Boolean = false,
+) {
     FpCard(modifier, onClick = onClick) {
         Row(Modifier.padding(12.dp)) {
             Box {
@@ -247,6 +269,19 @@ fun MovieCard(movie: Movie, rank: Int, genreNames: String, onClick: () -> Unit, 
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                     )
+                }
+                if (seen) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(4.dp)
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(Fp.BrandPurple),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.Check, contentDescription = "Seen", tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
                 }
             }
             Spacer(Modifier.width(14.dp))
@@ -291,4 +326,71 @@ fun CenteredMessage(
             }
         }
     }
+}
+
+/**
+ * Swipe a card sideways (either direction) to trigger [onSwiped]. Set [resetAfter] when the
+ * item stays in the list afterwards, so the card slides back.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeAction(
+    icon: ImageVector,
+    label: String,
+    background: Color,
+    onSwiped: () -> Unit,
+    resetAfter: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val state = rememberSwipeToDismissBoxState()
+    val currentOnSwiped by rememberUpdatedState(onSwiped)
+    val currentResetAfter by rememberUpdatedState(resetAfter)
+    // Lazy lists restore saved item state by key, so an item that comes back (e.g. after Undo)
+    // still has its dismissed swipe state. Remember whether that dismissal was already handled.
+    var handled by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state) {
+        // Handle values one at a time; a keyed LaunchedEffect would cancel itself mid-reset.
+        snapshotFlow { state.currentValue }.collect { value ->
+            when {
+                value == SwipeToDismissBoxValue.Settled -> handled = false
+                !handled -> {
+                    handled = true
+                    if (currentResetAfter) {
+                        // Slide the card back before applying the change, so the list update can't
+                        // interrupt the animation. The swipe's own settle can interrupt reset(): retry.
+                        repeat(20) {
+                            if (state.currentValue == SwipeToDismissBoxValue.Settled) return@repeat
+                            try {
+                                state.reset()
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                coroutineContext.ensureActive() // a real cancellation: rethrow
+                                kotlinx.coroutines.delay(50)
+                            }
+                        }
+                    }
+                    currentOnSwiped()
+                }
+                else -> state.snapTo(SwipeToDismissBoxValue.Settled) // came back: show the card again
+            }
+        }
+    }
+    SwipeToDismissBox(
+        state = state,
+        backgroundContent = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(background)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = if (state.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(icon, contentDescription = null, tint = Fp.TextPrimary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = Fp.TextPrimary)
+                }
+            }
+        },
+    ) { content() }
 }
