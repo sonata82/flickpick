@@ -16,7 +16,7 @@ Python 3.12, keep dependencies minimal (`requests` is fine; use the standard lib
 Steps:
 
 1. **Netflix provider ID**: call `GET https://api.themoviedb.org/3/watch/providers/movie?watch_region=DE` and look up the Netflix provider ID (expected to be 8). Don't hardcode it without checking. Include only flat-rate (subscription) availability.
-2. **Netflix DE movie list**: page through `GET /3/discover/movie` with `watch_region=DE`, `with_watch_providers=<netflix id>`, `with_watch_monetization_types=flatrate`, `language=de-DE`, `sort_by=popularity.desc`. TMDB caps discover at 500 pages; if the total ever exceeds that, split the query by release year ranges. Deduplicate by TMDB ID.
+2. **Netflix DE movie list**: page through `GET /3/discover/movie` with `watch_region=DE`, `with_watch_providers=<netflix id>`, `with_watch_monetization_types=flatrate`, `language=en-US` (English titles and overviews; availability is still region DE), `sort_by=popularity.desc`. TMDB caps discover at 500 pages; if the total ever exceeds that, split the query by release year ranges. Deduplicate by TMDB ID.
 3. **Genres**: fetch `GET /3/genre/movie/list` in both `de-DE` and `en-US` and map each movie's `genre_ids` to names. Store genre IDs on movies and keep a separate genre lookup table with both languages.
 4. **IMDb IDs**: for each movie, get the IMDb ID via `GET /3/movie/{id}/external_ids`. Cache these in a local file (committed or stored as an Actions cache) so later runs only look up new movies. Respect TMDB rate limits (add a small delay or concurrency limit and retry on 429).
 5. **IMDb ratings**: download `https://datasets.imdbws.com/title.ratings.tsv.gz` (the official IMDb non-commercial dataset, refreshed daily), stream-parse it, and join on IMDb ID to get `averageRating` and `numVotes`. Movies without an IMDb ID or rating stay in the output with `null` rating.
@@ -85,7 +85,7 @@ Steps:
 - **Default sort**: IMDb rating descending. Also sort options for vote count, year and title.
 - **Genre filter**: multi-select filter chips (horizontal scroll row or bottom sheet). Toggle between "match any" and "match all" selected genres. Genre names in German if the device language is German, else English.
 - **Minimum votes filter**: slider or presets (0, 1k, 10k, 50k, 100k), default 10k, so obscure titles with few votes don't dominate the top.
-- **Search**: by title (both German and original title).
+- **Search**: by title (both English and original title).
 - **Remember filters** between launches (DataStore).
 - **Detail**: tapping a movie shows a bottom sheet with overview and buttons: "Open in Netflix" (open `https://www.netflix.com/search?q=<title>`, which the Netflix app handles), "IMDb" (`https://www.imdb.com/title/<imdbId>/`).
 - **Header**: show when the data was last generated.
@@ -96,7 +96,7 @@ Steps:
 
 I want to add movies that are **not** on Netflix Germany yet, and get a notification once they are.
 
-- **Add a movie**: a "Watchlist" tab with a search field. It queries `GET https://api.themoviedb.org/3/search/movie?query=...&language=de-DE` (debounced, Bearer token from `BuildConfig`). Results show poster, title, original title and year. Tap to add.
+- **Add a movie**: a "Watchlist" tab with a search field. It queries `GET https://api.themoviedb.org/3/search/movie?query=...&language=en-US` (debounced, Bearer token from `BuildConfig`). Results show poster, title, original title and year. Tap to add.
 - If the movie is already in the current `movies.json`, say so right away ("Already on Netflix") and offer to open it instead of adding it.
 - **Storage**: Room database with watchlist entries: TMDB ID, title, year, poster path, date added, status (`waiting` / `available`), date it became available.
 - **Watchlist screen**: two sections, "Waiting" and "Now on Netflix". Swipe to remove, plus a button to clear the available ones.

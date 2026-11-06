@@ -7,7 +7,7 @@ Flickpick shows movies currently on Netflix Germany, sorted by IMDb rating. It i
 - `pipeline/`: Python 3.12+ script that builds `movies.json`. GitHub Actions runs it daily and publishes it to GitHub Pages (`https://sonata82.github.io/flickpick/movies.json`).
 - `app/`: Android app (Kotlin, Jetpack Compose, package `de.remk0.flickpick`) that downloads and browses `movies.json`.
 
-`netflix-imdb-prompt.md` is the original spec. Where it differs from the code or README, the code and README are newer (for example, titles and overviews are now `en-US`).
+`netflix-imdb-prompt.md` is the original spec. Where it differs from the code or README, the code and README are newer.
 
 ## Commands
 
